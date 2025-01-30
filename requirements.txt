@@ -8,3 +8,4 @@ python-social-auth>=0.3.6
 whitenoise>=6.6.0
 django-cors-headers>=4.3.1 
 lxml_html_clean
+gunicorn
