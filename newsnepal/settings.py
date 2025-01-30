@@ -150,11 +150,13 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5173"
+    "https://news-frontend-rsa1.onrender.com",
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://news-frontend-rsa1.onrender.com"
 ]
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -260,4 +262,6 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
 # Add this to your settings
-FRONTEND_URL = 'http://localhost:5173'  # Change this in production
+#FRONTEND_URL = 'http://localhost:5173'  # Change this in production
+
+FRONTEND_URL = 'https://news-frontend-rsa1.onrender.com'
