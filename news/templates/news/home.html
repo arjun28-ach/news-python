@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nepali Top News</title>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <!-- CSS -->
+    <style>
+        :root {
+            --primary-color: #dc143c; /* Crimson red from Nepal flag */
+            --secondary-color: #003893; /* Deep blue from Nepal flag */
+            --background-color: #f8f9fa;
+            --text-color: #212529;
+            --card-bg: #fff;
+            --gradient-primary: linear-gradient(45deg, #dc143c, #003893);
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #ff1744;
+            --secondary-color: #1565c0;
+            --background-color: #121212;
+            --text-color: #f8f9fa;
+            --card-bg: #1e1e1e;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+
+        #news-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .news-item {
+            background: var(--card-bg);
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .news-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .news-item img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .news-content {
+            padding: 15px;
+        }
+
+        .news-content h3 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            color: var(--text-color);
+        }
+
+        .news-content p {
+            font-size: 0.95rem;
+            color: var(--text-color);
+            margin-bottom: 15px;
+        }
+
+        .news-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--text-color);
+        }
+
+        .news-footer a {
+            text-decoration: none;
+            font-weight: bold;
+            color: var(--primary-color);
+            transition: color 0.2s ease;
+        }
+
+        .news-footer a:hover {
+            color: var(--primary-color);
+        }
+
+        #load-more {
+            background-color: var(--primary-color);
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        #load-more:hover {
+            background-color: var(--primary-color);
+        }
+
+        #load-more:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .news-item img {
+                height: 150px;
+            }
+
+            .news-content h3 {
+                font-size: 1rem;
+            }
+
+            .news-content p {
+                font-size: 0.9rem;
+            }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .loading-spinner {
+            display: none;
+            margin: 20px auto;
+        }
+
+        /* Navbar Styles */
+        .navbar {
+            background-color: var(--card-bg);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .navbar-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo {
+            width: 50px;
+            height: 50px;
+            background: var(--gradient-primary);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 24px;
+            text-transform: uppercase;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .nav-brand {
+            display: none;
+        }
+
+        .nav-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        /* Search Bar */
+        .search-container {
+            position: relative;
+            margin: 1rem 0;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.5rem 1rem;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            background-color: var(--card-bg);
+            color: var(--text-color);
+        }
+
+        /* Category Filter */
+        .category-filters {
+            display: flex;
+            gap: 0.5rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .category-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 20px;
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .category-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .category-btn.active {
+            background: var(--gradient-primary);
+            color: white;
+        }
+
+        /* Dark Mode Toggle */
+        .theme-toggle {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        /* Language Switch */
+        .language-switch {
+            background: none;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
+            cursor: pointer;
+        }
+
+        .error-message {
+            text-align: center;
+            padding: 2rem;
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            color: #dc3545;
+            margin: 1rem 0;
+        }
+
+        .news-source {
+            font-size: 0.8rem;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        /* Logo Styles */
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo {
+            width: 50px;
+            height: 50px;
+            background: var(--gradient-primary);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 24px;
+            text-transform: uppercase;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .site-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+            margin: 2rem 0;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        /* Footer Styles */
+        .footer {
+            background-color: var(--card-bg);
+            padding: 3rem 0;
+            margin-top: 4rem;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+        }
+
+        .footer-section {
+            color: var(--text-color);
+        }
+
+        .footer-section h3 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+
+        .footer-section p {
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .social-links {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .social-links a {
+            color: var(--text-color);
+            font-size: 1.5rem;
+            transition: color 0.3s;
+        }
+
+        .social-links a:hover {
+            color: var(--primary-color);
+        }
+
+        .footer-bottom {
+            text-align: center;
+            padding-top: 2rem;
+            margin-top: 2rem;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            font-size: 0.9rem;
+            color: var(--text-color);
+        }
+
+        .quick-links {
+            list-style: none;
+            padding: 0;
+        }
+
+        .quick-links li {
+            margin-bottom: 0.5rem;
+        }
+
+        .quick-links a {
+            color: var(--text-color);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .quick-links a:hover {
+            color: var(--primary-color);
+        }
+
+        .contact-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .contact-item i {
+            color: var(--primary-color);
+        }
+
+        @media (max-width: 768px) {
+            .category-filters {
+                gap: 0.3rem;
+            }
+            
+            .category-btn {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.8rem;
+            }
+        }
+
+        /* Add to your existing styles */
+        .bookmarks-btn {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 1.2rem;
+            position: relative;
+            padding: 0.5rem;
+        }
+
+        .bookmark-count {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: var(--primary-color);
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 50%;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        .news-item .bookmark-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border: none;
+            color: white;
+            padding: 0.5rem;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s;
+            z-index: 1;
+        }
+
+        .news-item .bookmark-btn:hover {
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .news-item .bookmark-btn.active {
+            color: var(--primary-color);
+        }
+
+        .bookmarks-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+        }
+
+        .bookmarks-content {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .bookmarks-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .bookmarks-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .news-actions {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .share-btn {
+            background: rgba(0, 0, 0, 0.5);
+            border: none;
+            color: white;
+            padding: 0.5rem;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary-color);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 5px;
+            animation: fadeInOut 3s;
+        }
+    </style>
+
+    <!-- jQuery for AJAX -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <div class="logo-container">
+                <div class="logo">NT</div>
+                <div class="nav-brand">Nepali Top News</div>
+            </div>
+            <div class="nav-controls">
+                <div class="auth-buttons">
+                    {% if user.is_authenticated %}
+                        <span class="user-name">{{ user.username }}</span>
+                        <button class="bookmarks-btn" id="bookmarks-btn" title="Bookmarks">
+                            <i class="fas fa-bookmark"></i>
+                            <span class="bookmark-count">0</span>
+                        </button>
+                        <a href="{% url 'logout' %}" class="auth-btn">Logout</a>
+                    {% else %}
+                        <button class="auth-btn" onclick="showLoginModal()">Login</button>
+                        <button class="auth-btn" onclick="showSignupModal()">Sign Up</button>
+                    {% endif %}
+                </div>
+                <button class="theme-toggle" id="theme-toggle">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button class="language-switch" id="language-switch">EN</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Add this after the navbar -->
+    <div class="bookmarks-modal" id="bookmarks-modal">
+        <div class="bookmarks-content">
+            <div class="bookmarks-header">
+                <h3>Bookmarked News</h3>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="bookmarks-list">
+                <!-- Bookmarked articles will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Add authentication modals -->
+    <div class="modal" id="login-modal">
+        <div class="modal-content">
+            <h2>Login</h2>
+            <form id="login-form">
+                <input type="text" name="username" placeholder="Username" required>
+                <input type="password" name="password" placeholder="Password" required>
+                <button type="submit">Login</button>
+            </form>
+            <p>Don't have an account? <a href="#" onclick="showSignupModal()">Sign up</a></p>
+        </div>
+    </div>
+
+    <div class="modal" id="signup-modal">
+        <div class="modal-content">
+            <h2>Sign Up</h2>
+            <form id="signup-form">
+                <input type="text" name="username" placeholder="Username" required>
+                <input type="email" name="email" placeholder="Email" required>
+                <input type="password" name="password1" placeholder="Password" required>
+                <input type="password" name="password2" placeholder="Confirm Password" required>
+                <button type="submit">Sign Up</button>
+            </form>
+            <p>Already have an account? <a href="#" onclick="showLoginModal()">Login</a></p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1 class="site-title">Nepali Top News</h1>
+        <!-- Search Bar -->
+        <div class="search-container">
+            <input type="text" id="search-input" class="search-input" placeholder="Search news...">
+        </div>
+
+        <!-- Category Filters -->
+        <div class="category-filters">
+            <button class="category-btn active" data-category="all">All News</button>
+            <button class="category-btn" data-category="politics">Politics</button>
+            <button class="category-btn" data-category="business">Business</button>
+            <button class="category-btn" data-category="technology">Technology</button>
+            <button class="category-btn" data-category="sports">Sports</button>
+            <button class="category-btn" data-category="entertainment">Entertainment</button>
+            <button class="category-btn" data-category="health">Health</button>
+            <button class="category-btn" data-category="education">Education</button>
+            <button class="category-btn" data-category="world">World</button>
+            <button class="category-btn" data-category="lifestyle">Lifestyle</button>
+        </div>
+
+        <div id="news-container">
+            <!-- News will be dynamically loaded here -->
+        </div>
+        
+        <div class="text-center" style="text-align: center; margin-top: 20px;">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin fa-2x"></i>
+            </div>
+            <button id="load-more">Load More</button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-section">
+                <div class="logo-container">
+                    <div class="logo">NT</div>
+                    <h3>Nepali Top News</h3>
+                </div>
+                <p>Your trusted source for the latest news from Nepal and around the world. Stay informed with our comprehensive coverage.</p>
+                <div class="social-links">
+                    <a href="#"><i class="fab fa-facebook"></i></a>
+                    <a href="#"><i class="fab fa-twitter"></i></a>
+                    <a href="#"><i class="fab fa-instagram"></i></a>
+                    <a href="#"><i class="fab fa-youtube"></i></a>
+                </div>
+            </div>
+
+            <div class="footer-section">
+                <h3>Quick Links</h3>
+                <ul class="quick-links">
+                    <li><a href="#">About Us</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Terms of Service</a></li>
+                    <li><a href="#">Contact Us</a></li>
+                    <li><a href="#">Advertise with Us</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-section">
+                <h3>Categories</h3>
+                <ul class="quick-links">
+                    <li><a href="#">Politics</a></li>
+                    <li><a href="#">Business</a></li>
+                    <li><a href="#">Technology</a></li>
+                    <li><a href="#">Sports</a></li>
+                    <li><a href="#">Entertainment</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-section">
+                <h3>Contact Us</h3>
+                <div class="contact-info">
+                    <div class="contact-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Kathmandu, Nepal</span>
+                    </div>
+                    <div class="contact-item">
+                        <i class="fas fa-envelope"></i>
+                        <span>info@nepalitopnews.com</span>
+                    </div>
+                    <div class="contact-item">
+                        <i class="fas fa-phone"></i>
+                        <span>+977 9867873849</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <p>&copy; 2025 Nepali Top News. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        let currentPage = 1;
+        let currentCategory = 'all';
+        let currentLang = 'en';
+
+        function loadNews() {
+            $('.loading-spinner').show();
+            $('#load-more').prop('disabled', true);
+            
+            $.ajax({
+                url: '/api/news/',
+                method: 'GET',
+                data: { 
+                    page: currentPage,
+                    category: currentCategory,
+                    search: $('#search-input').val(),
+                    language: currentLang
+                },
+                dataType: 'json',
+                success: function(data) {
+                    $('.loading-spinner').hide();
+                    $('#load-more').prop('disabled', false);
+                    const newsContainer = $('#news-container');
+
+                    if (data.articles && Array.isArray(data.articles)) {
+                        data.articles.forEach(article => {
+                            const newsItem = `
+                                <div class="news-item">
+                                    <div class="news-actions">
+                                        ${isAuthenticated ? `
+                                            <button class="bookmark-btn" onclick="toggleBookmark(this)" data-article='${JSON.stringify(article).replace(/'/g, "&apos;")}'>
+                                                <i class="fas fa-bookmark"></i>
+                                            </button>
+                                        ` : ''}
+                                        <button class="share-btn" onclick="shareArticle(this)" data-url="${article.url}">
+                                            <i class="fas fa-share-alt"></i>
+                                        </button>
+                                    </div>
+                                    <img src="${article.image_url || 'https://via.placeholder.com/300x200'}" alt="News Image">
+                                    <div class="news-content">
+                                        <h3>${article.title || 'No Title'}</h3>
+                                        <p>${article.summary || 'No Summary Available'}</p>
+                                        <div class="news-footer">
+                                            <span>${translations[currentLang].published}: ${article.published_at ? new Date(article.published_at).toLocaleDateString() : 'N/A'}</span>
+                                            <a href="${article.url}" target="_blank">${translations[currentLang].readMore}</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            newsContainer.append(newsItem);
+                        });
+
+                        // Disable Load More button if there are no more articles
+                        if (!data.has_next) {
+                            $('#load-more').prop('disabled', true).text('No More News');
+                        }
+                    } else {
+                        console.error("Invalid data format received:", data);
+                        $('#load-more').prop('disabled', true).text('Error Loading News');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $('.loading-spinner').hide();
+                    console.error("Error fetching news:", error);
+                    $('#load-more').prop('disabled', true).text('Error Loading News');
+                    $('#news-container').html('<div class="error-message">Unable to load news. Please try again later.</div>');
+                }
+            });
+        }
+
+        $('#load-more').on('click', function() {
+            currentPage++;
+            loadNews();
+        });
+
+        // Initial load
+        loadNews();
+
+        // Dark mode toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        const html = document.documentElement;
+        
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            themeToggle.innerHTML = newTheme === 'light' ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
+        });
+
+        // Language switch
+        const languageSwitch = document.getElementById('language-switch');
+        
+        languageSwitch.addEventListener('click', () => {
+            currentLang = currentLang === 'en' ? 'np' : 'en';
+            languageSwitch.textContent = currentLang.toUpperCase();
+            updateUILanguage(currentLang);
+        });
+
+        // Search functionality
+        const searchInput = document.getElementById('search-input');
+        let searchTimeout;
+        
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const searchTerm = e.target.value.toLowerCase();
+                filterNews(searchTerm);
+            }, 300);
+        });
+
+        // Category filter
+        const categoryBtns = document.querySelectorAll('.category-btn');
+        
+        categoryBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                categoryBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentCategory = btn.dataset.category;
+                currentPage = 1;
+                $('#news-container').empty();
+                loadNews();
+            });
+        });
+
+        function filterNews(searchTerm) {
+            currentPage = 1;
+            $('#news-container').empty();
+            loadNews();
+        }
+
+        // Update the language switch handler
+        const translations = {
+            en: {
+                searchPlaceholder: "Search news...",
+                allNews: "All News",
+                politics: "Politics",
+                business: "Business",
+                technology: "Technology",
+                sports: "Sports",
+                entertainment: "Entertainment",
+                health: "Health",
+                education: "Education",
+                world: "World",
+                lifestyle: "Lifestyle",
+                readMore: "Read More",
+                published: "Published",
+                noMoreNews: "No More News",
+                errorLoading: "Error Loading News"
+            },
+            np: {
+                searchPlaceholder: "समाचार खोज्नुहोस्...",
+                allNews: "सबै समाचार",
+                politics: "राजनीति",
+                business: "व्यापार",
+                technology: "प्रविधि",
+                sports: "खेलकुद",
+                entertainment: "मनोरञ्जन",
+                health: "स्वास्थ्य",
+                education: "शिक्षा",
+                world: "विश्व",
+                lifestyle: "जीवनशैली",
+                readMore: "थप पढ्नुहोस्",
+                published: "प्रकाशित",
+                noMoreNews: "थप समाचार छैन",
+                errorLoading: "समाचार लोड गर्न सकिएन"
+            }
+        };
+
+        function updateUILanguage(lang) {
+            // Update placeholders and text
+            $('#search-input').attr('placeholder', translations[lang].searchPlaceholder);
+            $('.category-btn').each(function() {
+                const category = $(this).data('category');
+                $(this).text(translations[lang][category] || category);
+            });
+            
+            // Reload news in the new language
+            currentPage = 1;
+            $('#news-container').empty();
+            loadNews();
+        }
+
+        // Add this JavaScript for bookmark functionality
+        let bookmarks = JSON.parse(localStorage.getItem('bookmarks') || '[]');
+
+        function updateBookmarkCount() {
+            $('.bookmark-count').text(bookmarks.length);
+        }
+
+        function toggleBookmark(btn) {
+            const article = JSON.parse(btn.dataset.article);
+            const index = bookmarks.findIndex(b => b.url === article.url);
+            
+            if (index === -1) {
+                bookmarks.push(article);
+                btn.classList.add('active');
+            } else {
+                bookmarks.splice(index, 1);
+                btn.classList.remove('active');
+            }
+            
+            localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
+            updateBookmarkCount();
+            renderBookmarks();
+        }
+
+        function renderBookmarks() {
+            const bookmarksList = $('.bookmarks-list');
+            bookmarksList.empty();
+            
+            bookmarks.forEach(article => {
+                const bookmarkItem = `
+                    <div class="news-item">
+                        <button class="bookmark-btn active" onclick="toggleBookmark(this)" data-article='${JSON.stringify(article).replace(/'/g, "&apos;")}'>
+                            <i class="fas fa-bookmark"></i>
+                        </button>
+                        <img src="${article.image_url || 'https://via.placeholder.com/300x200'}" alt="News Image">
+                        <div class="news-content">
+                            <h3>${article.title || 'No Title'}</h3>
+                            <p>${article.summary || 'No Summary Available'}</p>
+                            <div class="news-footer">
+                                <span>${translations[currentLang].published}: ${article.published_at ? new Date(article.published_at).toLocaleDateString() : 'N/A'}</span>
+                                <a href="${article.url}" target="_blank">${translations[currentLang].readMore}</a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                bookmarksList.append(bookmarkItem);
+            });
+        }
+
+        // Add event listeners
+        $('#bookmarks-btn').click(() => {
+            $('#bookmarks-modal').show();
+            renderBookmarks();
+        });
+
+        $('.close-modal').click(() => {
+            $('#bookmarks-modal').hide();
+        });
+
+        $(window).click(e => {
+            if (e.target === document.getElementById('bookmarks-modal')) {
+                $('#bookmarks-modal').hide();
+            }
+        });
+
+        // Initialize bookmark count
+        updateBookmarkCount();
+
+        // Add sharing functionality
+        function shareArticle(btn) {
+            const url = btn.dataset.url;
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Check out this news article',
+                    url: url
+                });
+            } else {
+                navigator.clipboard.writeText(url).then(() => {
+                    showToast('Link copied to clipboard!');
+                });
+            }
+        }
+
+        // Authentication handlers
+        function showLoginModal() {
+            document.getElementById('login-modal').style.display = 'block';
+        }
+
+        function showSignupModal() {
+            document.getElementById('signup-modal').style.display = 'block';
+        }
+
+        // Handle bookmark clicks for non-authenticated users
+        function toggleBookmark(btn) {
+            if (!isAuthenticated) {
+                showLoginModal();
+                return;
+            }
+            // Your existing bookmark logic
+        }
+    </script>
+</body>
+</html>

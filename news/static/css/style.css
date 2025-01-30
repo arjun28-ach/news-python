@@ -1,0 +1,24 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f8f9fa;
+}
+
+.text-muted {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.img-fluid {
+    max-width: 100%;
+    height: auto;
+    object-fit: cover;
+}
+
+.row {
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 15px;
+}
+
+.pagination {
+    margin-top: 20px;
+}
