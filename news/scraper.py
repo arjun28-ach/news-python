@@ -42,7 +42,7 @@ NEWS_SITES = [
         'article_selector': 'article.article-item, .article-image',
         'title_selector': 'h3 a, .article-header a',
         'summary_selector': '.article-excerpt, p.text-gray-600',
-        'image_selector': 'img.img-responsive, img.article-image',
+        'image_selector': '.article-image img, meta[property="og:image"], .image img, img.featured-image',
         'date_selector': 'time, .article-date',
         'categories': [
             {'path': '', 'category': 'all'},
@@ -242,17 +242,55 @@ def fetch_site_news(site):
 
                         processed_urls.add(article_url)
 
+                        # Get image URL first from preview
+                        image_elem = item.select_one(site['image_selector'])
+                        image_url = None
+                        
+                        if image_elem:
+                            # Try data-src first (lazy loading images)
+                            image_url = image_elem.get('data-src') or image_elem.get('src', '')
+                            
+                            # Clean up image URL
+                            if image_url:
+                                if not image_url.startswith('http'):
+                                    image_url = site['url'] + image_url if image_url.startswith('/') else None
+                        
+                        # If no image found in preview, try to get from article page
+                        if not image_url and article_url:
+                            try:
+                                article_response = session.get(article_url, timeout=5)
+                                if article_response.status_code == 200:
+                                    article_soup = BeautifulSoup(article_response.text, 'html.parser')
+                                    
+                                    # Try multiple image selectors
+                                    image_selectors = [
+                                        'meta[property="og:image"]',
+                                        'meta[name="twitter:image"]',
+                                        '.article-image img',
+                                        '.featured-image img',
+                                        'article img:first-child'
+                                    ]
+                                    
+                                    for selector in image_selectors:
+                                        img = article_soup.select_one(selector)
+                                        if img:
+                                            image_url = img.get('content') or img.get('src')
+                                            if image_url:
+                                                # Clean up image URL
+                                                if not image_url.startswith('http'):
+                                                    image_url = site['url'] + image_url if image_url.startswith('/') else None
+                                                break
+                            except Exception as e:
+                                logger.warning(f"Failed to fetch article page for image: {str(e)}")
+
+                        # Update site-specific image selectors
+                        if site['name'] == 'The Kathmandu Post':
+                            image_url = image_url or 'https://kathmandupost.com/images/default-fallback.png'
+                        
                         # Get summary from preview
                         summary_elem = item.select_one(site['summary_selector'])
                         summary = summary_elem.get_text(strip=True) if summary_elem else title
                         summary = ' '.join(summary.split()[:60]) + '...'
-                        
-                        # Get image from preview
-                        image_elem = item.select_one(site['image_selector'])
-                        image_url = image_elem.get('src', '') if image_elem else ''
-
-                        if image_url and not image_url.startswith('http'):
-                            image_url = site['url'] + image_url if image_url.startswith('/') else None
 
                         articles.append({
                             'title': title,
@@ -265,7 +303,8 @@ def fetch_site_news(site):
                             'language': site['language']
                         })
 
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"Error processing article: {str(e)}")
                         continue
 
                 page += 1
