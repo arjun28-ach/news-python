@@ -29,8 +29,14 @@ logger.setLevel(logging.WARNING)  # Change from INFO to WARNING
 # Configure requests session
 session = requests.Session()
 session.headers.update({
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Connection': 'keep-alive',
 })
+
+# Add reasonable timeout
+session.timeout = 15
 
 # List of reliable Nepali news websites with correct paths
 NEWS_SITES = [
@@ -39,11 +45,11 @@ NEWS_SITES = [
         'language': 'en',
         'name': 'The Kathmandu Post',
         'limit': 500,
-        'article_selector': 'article.article-item, .article-image',
-        'title_selector': 'h3 a, .article-header a',
-        'summary_selector': '.article-excerpt, p.text-gray-600',
-        'image_selector': '.article-image img, meta[property="og:image"], .image img',
-        'date_selector': 'time, .article-date',
+        'article_selector': 'article.article-item, div.article-image, .article',
+        'title_selector': 'h3 a, .article-header a, h2 a',
+        'summary_selector': '.article-excerpt, p.text-gray-600, .description',
+        'image_selector': 'img.featured-image, .article-image img, meta[property="og:image"]',
+        'date_selector': 'time, .article-date, .published-date',
         'categories': [
             {'path': '', 'category': 'all'},
             {'path': '/national', 'category': 'national'},
@@ -189,113 +195,92 @@ def fetch_site_news(site):
     processed_urls = set()
     retries = 3
 
-    # Skip validation for now to reduce logs
     for category in site['categories']:
         page = 1
-        max_pages = 2  # Reduced from 3 to 2
+        max_pages = 2
         
         while len(articles) < site['limit'] and page <= max_pages:
             try:
-                sleep(uniform(2.0, 4.0))
+                # Add delay between requests
+                sleep(uniform(1.0, 2.0))
                 
+                # Construct page URL
                 page_url = f"{site['url']}{category['path']}"
-                if page > 1:
+                if page > 1 and 'kathmandupost.com' in site['url']:
+                    page_url += f"?page={page}"
+                elif page > 1:
                     page_url += f"/page/{page}"
 
+                # Fetch page with retries
                 response = None
                 for attempt in range(retries):
                     try:
-                        response = session.get(page_url, timeout=10)  # Reduced timeout
-                        if response.status_code == 200:
-                            break
-                        sleep((attempt + 1) * 2)  # Reduced wait time
-                    except Exception:
+                        response = session.get(
+                            page_url, 
+                            timeout=15,
+                            headers={
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                                'Accept-Language': 'en-US,en;q=0.5',
+                                'Connection': 'keep-alive',
+                            }
+                        )
+                        response.raise_for_status()
+                        break
+                    except Exception as e:
+                        logger.warning(f"Attempt {attempt + 1} failed for {page_url}: {str(e)}")
                         if attempt == retries - 1:
                             raise
-                        sleep((attempt + 1) * 2)
+                        sleep(uniform(2.0, 4.0))
 
                 if not response or response.status_code != 200:
+                    logger.warning(f"Failed to fetch {page_url}")
                     break
 
+                # Parse page content
                 soup = BeautifulSoup(response.text, 'html.parser')
                 news_items = soup.select(site['article_selector'])
 
                 if not news_items:
+                    logger.warning(f"No news items found at {page_url} using selector: {site['article_selector']}")
                     break
 
-                for item in news_items[:10]:  # Limit items per page
-                    if len(articles) >= site['limit']:
-                        break
-
+                # Process each news item
+                for item in news_items[:10]:
                     try:
-                        # Basic article extraction without full article fetch
+                        # Get title and URL
                         title_elem = item.select_one(site['title_selector'])
                         if not title_elem:
                             continue
-
+                            
                         title = title_elem.get_text(strip=True)
                         article_url = title_elem.get('href', '')
-
-                        if not article_url or article_url in processed_urls:
-                            continue
-
+                        
+                        # Fix relative URLs
                         if article_url.startswith('/'):
                             article_url = site['url'] + article_url
                         elif not article_url.startswith('http'):
                             continue
 
+                        # Skip if already processed
+                        if article_url in processed_urls:
+                            continue
                         processed_urls.add(article_url)
 
-                        # Get image URL first from preview
-                        image_elem = item.select_one(site['image_selector'])
+                        # Get image
                         image_url = None
-                        
+                        image_elem = item.select_one(site['image_selector'])
                         if image_elem:
-                            # Try data-src first (lazy loading images)
                             image_url = image_elem.get('data-src') or image_elem.get('src', '')
-                            
-                            # Clean up image URL
-                            if image_url:
-                                if not image_url.startswith('http'):
-                                    image_url = site['url'] + image_url if image_url.startswith('/') else None
-                        
-                        # If no image found in preview, try to get from article page
-                        if not image_url and article_url:
-                            try:
-                                article_response = session.get(article_url, timeout=5)
-                                if article_response.status_code == 200:
-                                    article_soup = BeautifulSoup(article_response.text, 'html.parser')
-                                    
-                                    # Try multiple image selectors
-                                    image_selectors = [
-                                        'meta[property="og:image"]',
-                                        'meta[name="twitter:image"]',
-                                        '.article-image img',
-                                        '.featured-image img',
-                                        'article img:first-child'
-                                    ]
-                                    
-                                    for selector in image_selectors:
-                                        img = article_soup.select_one(selector)
-                                        if img:
-                                            image_url = img.get('content') or img.get('src')
-                                            if image_url:
-                                                # Clean up image URL
-                                                if not image_url.startswith('http'):
-                                                    image_url = site['url'] + image_url if image_url.startswith('/') else None
-                                                break
-                            except Exception as e:
-                                logger.warning(f"Failed to fetch article page for image: {str(e)}")
+                            if image_url and not image_url.startswith('http'):
+                                image_url = site['url'] + image_url if image_url.startswith('/') else None
 
-                        # Update site-specific image selectors
-                        if site['name'] == 'The Kathmandu Post':
-                            image_url = image_url or 'https://kathmandupost.com/images/default-fallback.png'
-                        
-                        # Get summary from preview
+                        # Get summary
                         summary_elem = item.select_one(site['summary_selector'])
                         summary = summary_elem.get_text(strip=True) if summary_elem else title
                         summary = ' '.join(summary.split()[:60]) + '...'
 
+                        # Create article object
                         articles.append({
                             'title': title,
                             'summary': summary,
@@ -313,9 +298,13 @@ def fetch_site_news(site):
 
                 page += 1
 
-            except Exception:
+            except Exception as e:
+                logger.error(f"Error on page {page} for {site['url']}: {str(e)}")
                 break
 
+    if not articles:
+        logger.warning(f"No articles could be fetched from {site['name']}")
+    
     return articles
 
 def parse_date(date_str):
