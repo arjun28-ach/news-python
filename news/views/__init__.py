@@ -1,2 +1,2 @@
-from .auth import *
-from .news import * 
+from .auth_views import *
+from .news_views import * 
