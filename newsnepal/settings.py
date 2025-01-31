@@ -25,7 +25,11 @@ SECRET_KEY = 'django-insecure-6x8#hup=0&ej8kbr=w2au!bvk(__fjxtg901ncbr2h9+qjhx2%
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'newsbackend-4so0.onrender.com']
+ALLOWED_HOSTS = [
+    'localhost', 
+    '127.0.0.1',
+    'newsbackend-4so0.onrender.com'  # Added backend URL
+]
 
 
 # Application definition
@@ -61,7 +65,8 @@ TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
-            BASE_DIR / 'frontend' / 'dist',  # Path to React build
+            BASE_DIR / 'frontend' / 'dist',  # React build directory
+            BASE_DIR / 'templates',  # Add this line for Django templates
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -130,12 +135,14 @@ STATIC_URL = '/static/'
 # Directory where collectstatic will collect static files for deployment
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-"""
+
 # Additional locations of static files
-STATICFILES_DIRS = [
-    BASE_DIR / 'frontend' / 'dist',
-]
-"""
+STATICFILES_DIRS = []
+
+# Only add frontend dist if it exists
+frontend_dist = BASE_DIR / 'frontend' / 'dist'
+if frontend_dist.exists():
+    STATICFILES_DIRS.append(frontend_dist)
 
 
 # Ensure static files are served in development
@@ -151,12 +158,12 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://news-frontend-rsa1.onrender.com",
+    "https://news-frontend-rsa1.onrender.com"  # Added frontend URL
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://news-frontend-rsa1.onrender.com"
+    "https://news-frontend-rsa1.onrender.com"  # Added frontend URL
 ]
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -262,6 +269,4 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
 # Add this to your settings
-#FRONTEND_URL = 'http://localhost:5173'  # Change this in production
-
-FRONTEND_URL = 'https://news-frontend-rsa1.onrender.com'
+FRONTEND_URL = 'https://news-frontend-rsa1.onrender.com'  # Update this for production
