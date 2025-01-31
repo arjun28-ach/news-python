@@ -13,8 +13,18 @@ from django.core.cache import cache
 import time
 from time import sleep
 from random import uniform
+import nltk
+import os
 
+# Download NLTK data silently
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt', quiet=True)
+
+# Update logging configuration to be less verbose
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)  # Change from INFO to WARNING
 
 # Configure requests session
 session = requests.Session()
@@ -56,14 +66,7 @@ NEWS_SITES = [
         'image_selector': '.jeg_thumb img',
         'date_selector': '.jeg_meta_date',
         'categories': [
-            {'path': '', 'category': 'all'},
-            {'path': '/category/politics', 'category': 'politics'},
-            {'path': '/category/kathmandu', 'category': 'valley'},
-            {'path': '/category/nepal', 'category': 'nepal'},
-            {'path': '/category/world', 'category': 'world'},
-            {'path': '/category/business', 'category': 'business'},
-            {'path': '/category/sports', 'category': 'sports'},
-            {'path': '/category/entertainment', 'category': 'entertainment'}
+            {'path': '', 'category': 'all'}  # Keep only main page for now
         ]
     },
     {
@@ -77,12 +80,7 @@ NEWS_SITES = [
         'image_selector': '.featured-image img',
         'date_selector': '.post-date',
         'categories': [
-            {'path': '', 'category': 'all'},
-            {'path': '/category/political', 'category': 'political'},
-            {'path': '/category/economy', 'category': 'economy'},
-            {'path': '/category/lifestyle', 'category': 'lifestyle'},
-            {'path': '/category/travel', 'category': 'travel'},
-            {'path': '/category/sports', 'category': 'sports'}
+            {'path': '', 'category': 'all'}  # Keep only main page for now
         ]
     },
     {
@@ -187,102 +185,46 @@ def fetch_site_news(site):
     processed_urls = set()
     retries = 3
 
-    # Validate categories first
-    valid_categories = []
-    for category in site['categories']:
-        if category['path'] == '' or validate_category_url(site, category):
-            valid_categories.append(category)
-        else:
-            logger.warning(f"Skipping invalid category path: {category['path']} for {site['name']}")
-    
-    # Update site's categories with only valid ones
-    site['categories'] = valid_categories
-
-    # Fetch from each category
+    # Skip validation for now to reduce logs
     for category in site['categories']:
         page = 1
-        max_pages = 3
+        max_pages = 2  # Reduced from 3 to 2
         
         while len(articles) < site['limit'] and page <= max_pages:
             try:
-                # Add delay between requests
-                sleep(uniform(2.0, 4.0))  # Increased delay
+                sleep(uniform(2.0, 4.0))
                 
-                # Construct category URL
+                page_url = f"{site['url']}{category['path']}"
                 if page > 1:
-                    if 'thehimalayantimes.com' in site['url']:
-                        page_url = f"{site['url']}{category['path']}/page/{page}/"  # Added trailing slash
-                    else:
-                        page_url = f"{site['url']}{category['path']}/page/{page}"
-                else:
-                    page_url = f"{site['url']}{category['path']}"
+                    page_url += f"/page/{page}"
 
-                # Log the attempt
-                logger.info(f"Fetching {page_url}")
-
-                # Add retry logic with exponential backoff
                 response = None
                 for attempt in range(retries):
                     try:
-                        response = session.get(page_url, timeout=20)  # Increased timeout
-                        
-                        # Log response status and length
-                        logger.info(f"Response from {page_url}: Status {response.status_code}, Length {len(response.text)}")
-                        
-                        if response.status_code == 404:
-                            logger.warning(f"Page not found: {page_url}")
+                        response = session.get(page_url, timeout=10)  # Reduced timeout
+                        if response.status_code == 200:
                             break
-                        if response.status_code == 429:  # Too Many Requests
-                            wait_time = 30 * (attempt + 1)  # Progressive waiting
-                            logger.warning(f"Rate limited, waiting {wait_time} seconds")
-                            sleep(wait_time)
-                            continue
-                        response.raise_for_status()
-                        break
-                    except requests.exceptions.RequestException as e:
-                        wait_time = (attempt + 1) * 5
-                        logger.warning(f"Attempt {attempt + 1} failed for {page_url}: {str(e)}")
+                        sleep((attempt + 1) * 2)  # Reduced wait time
+                    except Exception:
                         if attempt == retries - 1:
                             raise
-                        sleep(wait_time)
+                        sleep((attempt + 1) * 2)
 
                 if not response or response.status_code != 200:
-                    continue
-
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # Debug logging for THT
-                if 'thehimalayantimes.com' in site['url']:
-                    # Log all available article-like elements
-                    all_articles = soup.find_all('article')
-                    logger.info(f"Found {len(all_articles)} raw article elements")
-                    
-                    all_posts = soup.find_all(class_=lambda x: x and 'post' in x.lower())
-                    logger.info(f"Found {len(all_posts)} elements with 'post' in class name")
-                    
-                    # Log the first few elements for inspection
-                    logger.debug("First few elements structure:")
-                    for elem in list(all_posts)[:2]:
-                        logger.debug(f"\nElement classes: {elem.get('class')}")
-                        logger.debug(f"Element HTML:\n{elem.prettify()[:500]}...")
-
-                news_items = soup.select(site['article_selector'])
-
-                # Log found items
-                logger.info(f"Found {len(news_items)} items at {page_url}")
-
-                if not news_items:
-                    logger.warning(f"No news items found at {page_url} using selector: {site['article_selector']}")
-                    # Log the full HTML structure for debugging
-                    logger.debug(f"Full page HTML structure:\n{soup.prettify()[:1000]}...")
                     break
 
-                for item in news_items:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                news_items = soup.select(site['article_selector'])
+
+                if not news_items:
+                    break
+
+                for item in news_items[:10]:  # Limit items per page
                     if len(articles) >= site['limit']:
                         break
 
                     try:
-                        # Extract title and URL
+                        # Basic article extraction without full article fetch
                         title_elem = item.select_one(site['title_selector'])
                         if not title_elem:
                             continue
@@ -300,35 +242,15 @@ def fetch_site_news(site):
 
                         processed_urls.add(article_url)
 
-                        # Add delay before fetching full article
-                        sleep(uniform(0.5, 1.0))
+                        # Get summary from preview
+                        summary_elem = item.select_one(site['summary_selector'])
+                        summary = summary_elem.get_text(strip=True) if summary_elem else title
+                        summary = ' '.join(summary.split()[:60]) + '...'
+                        
+                        # Get image from preview
+                        image_elem = item.select_one(site['image_selector'])
+                        image_url = image_elem.get('src', '') if image_elem else ''
 
-                        # Try to get full article for better content
-                        try:
-                            article = Article(article_url, timeout=10)
-                            article.download()
-                            article.parse()
-                            
-                            # Get the main image
-                            image_url = article.top_image
-                            
-                            # Get or generate summary
-                            article.nlp()
-                            summary = article.summary
-                            if summary:
-                                summary = ' '.join(summary.split()[:60]) + '...'
-                        except Exception as e:
-                            logger.warning(f"Failed to fetch full article {article_url}: {str(e)}")
-                            # Fallback to preview content
-                            summary_elem = item.select_one(site['summary_selector'])
-                            summary = summary_elem.get_text(strip=True) if summary_elem else title
-                            summary = ' '.join(summary.split()[:60]) + '...'
-                            
-                            # Get image from preview
-                            image_elem = item.select_one(site['image_selector'])
-                            image_url = image_elem.get('src', '') if image_elem else ''
-
-                        # Clean up image URL
                         if image_url and not image_url.startswith('http'):
                             image_url = site['url'] + image_url if image_url.startswith('/') else None
 
@@ -343,22 +265,14 @@ def fetch_site_news(site):
                             'language': site['language']
                         })
 
-                    except Exception as e:
-                        logger.error(f"Error processing article: {str(e)}")
+                    except Exception:
                         continue
 
                 page += 1
 
-            except Exception as e:
-                logger.error(f"Error on page {page} for {site['url']}{category['path']}: {str(e)}", exc_info=True)
-                sleep(5)
+            except Exception:
                 break
 
-    if not articles:
-        logger.error(f"No articles could be fetched from {site['name']}")
-    else:
-        logger.info(f"Successfully fetched {len(articles)} articles from {site['name']}")
-        
     return articles
 
 def parse_date(date_str):
