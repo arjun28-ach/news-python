@@ -20,6 +20,11 @@ from django.middleware.csrf import get_token
 logger = logging.getLogger(__name__)
 
 @ensure_csrf_cookie
+def get_csrf_token(request):
+    """Get CSRF token for frontend"""
+    return JsonResponse({'csrfToken': get_token(request)})
+
+@ensure_csrf_cookie
 def home(request):
     manifest_path = settings.BASE_DIR / 'frontend' / 'dist' / 'manifest.json'
     try:
@@ -58,7 +63,7 @@ def news_api(request):
 @require_POST
 def bookmark_article(request):
     try:
-        data = request.POST
+        data = json.loads(request.body)
         UserBookmark.objects.create(
             user=request.user,
             article_url=data['url'],
@@ -67,8 +72,7 @@ def bookmark_article(request):
             image_url=data['image_url'],
             published_at=data['published_at'],
             category=data['category'],
-            source=data['source'],
-            language=data['language']
+            source=data['source']
         )
         return JsonResponse({'status': 'success'})
     except Exception as e:
@@ -81,12 +85,7 @@ def get_bookmarks(request):
         'bookmarks': list(bookmarks.values())
     })
 
-@ensure_csrf_cookie
-def get_csrf_token(request):
-    """Get CSRF token for frontend"""
-    return JsonResponse({'csrfToken': get_token(request)})
-
-@csrf_exempt  # Temporarily exempt signup from CSRF
+@csrf_exempt
 def signup(request):
     if request.method == 'POST':
         try:
@@ -102,23 +101,24 @@ def signup(request):
                 return JsonResponse({
                     'status': 'success',
                     'user': {
-                        'username': user.username,
-                        'email': user.email
+                        'username': user.username
                     }
                 })
-            else:
-                return JsonResponse({
-                    'status': 'error',
-                    'errors': form.errors
-                }, status=400)
+            return JsonResponse({
+                'status': 'error',
+                'errors': form.errors
+            }, status=400)
         except json.JSONDecodeError:
             return JsonResponse({
                 'status': 'error',
                 'message': 'Invalid JSON'
             }, status=400)
-    return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Method not allowed'
+    }, status=405)
 
-@csrf_exempt  # Temporarily exempt login from CSRF
+@csrf_exempt
 def login_view(request):
     if request.method == 'POST':
         try:
@@ -131,25 +131,26 @@ def login_view(request):
                 return JsonResponse({
                     'status': 'success',
                     'user': {
-                        'username': user.username,
-                        'email': user.email
+                        'username': user.username
                     }
                 })
-            else:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Invalid credentials'
-                }, status=400)
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Invalid credentials'
+            }, status=400)
         except json.JSONDecodeError:
             return JsonResponse({
                 'status': 'error',
                 'message': 'Invalid JSON'
             }, status=400)
-    return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Method not allowed'
+    }, status=405)
 
 def logout_view(request):
     logout(request)
-    return redirect('home')
+    return JsonResponse({'status': 'success'})
 
 @login_required
 def get_bookmark_count(request):
@@ -161,7 +162,6 @@ def auth_status(request):
     return JsonResponse({
         'isAuthenticated': request.user.is_authenticated,
         'user': {
-            'username': request.user.username,
-            'email': request.user.email
+            'username': request.user.username
         } if request.user.is_authenticated else None
     })
