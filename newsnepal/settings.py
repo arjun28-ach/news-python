@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 """
 
 from pathlib import Path
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.shortcuts import render
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,12 +26,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-6x8#hup=0&ej8kbr=w2au!bvk(__fjxtg901ncbr2h9+qjhx2%'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = [
     'localhost', 
     '127.0.0.1',
-    'newsbackend-4so0.onrender.com'  # Added backend URL
+    'newsbackend-4so0.onrender.com',
+    '.onrender.com'  # Allow all subdomains on render.com
 ]
 
 
@@ -48,6 +52,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Keep this second
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -55,7 +60,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'social_django.middleware.SocialAuthExceptionMiddleware',
 ]
 
@@ -65,8 +69,7 @@ TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
-            BASE_DIR / 'frontend' / 'dist',  # React build directory
-            BASE_DIR / 'templates',  # Add this line for Django templates
+            BASE_DIR / 'templates',  # Only keep Django templates directory
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -130,40 +133,53 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
-STATIC_URL = '/static/'
+# Remove frontend-related directories since frontend is deployed separately
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [
+            BASE_DIR / 'templates',  # Only keep Django templates directory
+        ],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
 
-# Directory where collectstatic will collect static files for deployment
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-
-
-# Additional locations of static files
+# Remove frontend-related static files configuration
 STATICFILES_DIRS = []
 
-# Only add frontend dist if it exists
-frontend_dist = BASE_DIR / 'frontend' / 'dist'
-if frontend_dist.exists():
-    STATICFILES_DIRS.append(frontend_dist)
+# Keep only the basic static files configuration
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# Remove frontend-specific whitenoise settings
+WHITENOISE_ROOT = None
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
-# Ensure static files are served in development
-if DEBUG:
-    STATICFILES_FINDERS = [
-        'django.contrib.staticfiles.finders.FileSystemFinder',
-        'django.contrib.staticfiles.finders.AppDirectoriesFinder',
-    ]
+# Remove the manifest loading from views since there's no frontend build
+@ensure_csrf_cookie
+def home(request):
+    return render(request, 'index.html')
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://news-frontend-rsa1.onrender.com"  # Added frontend URL
+    "https://news-frontend-rsa1.onrender.com"
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://news-frontend-rsa1.onrender.com"  # Added frontend URL
+    "https://news-frontend-rsa1.onrender.com"
 ]
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -219,9 +235,9 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = 'your-google-oauth2-secret'
 SOCIAL_AUTH_URL_NAMESPACE = 'social'
 
 # Login/Logout URLs
-LOGIN_URL = 'login'
+LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
-LOGOUT_URL = 'logout'
+LOGOUT_URL = '/logout/'
 LOGOUT_REDIRECT_URL = '/'
 
 # CORS settings
@@ -269,4 +285,36 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
 # Add this to your settings
-FRONTEND_URL = 'https://news-frontend-rsa1.onrender.com'  # Update this for production
+FRONTEND_URL = 'https://news-frontend-rsa1.onrender.com'
+
+# Keep DEBUG = False for production
+DEBUG = False
+
+# Keep these settings in one place
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_URL = '/static/'
+WHITENOISE_INDEX_FILE = True
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Update CORS settings to be more secure
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://news-frontend-rsa1.onrender.com"
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://news-frontend-rsa1.onrender.com"
+]
+
+# Keep one copy of LOGIN/LOGOUT URLs
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_URL = '/logout/'
+LOGOUT_REDIRECT_URL = '/'
+
+# Frontend URL
+FRONTEND_URL = 'https://news-frontend-rsa1.onrender.com'
