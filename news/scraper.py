@@ -24,7 +24,7 @@ except LookupError:
 
 # Update logging configuration to be less verbose
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.WARNING)  # Change from INFO to WARNING
+logger.setLevel(logging.INFO)  # Change from INFO to WARNING
 
 # Configure requests session
 session = requests.Session()
@@ -33,6 +33,8 @@ session.headers.update({
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.5',
     'Connection': 'keep-alive',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
 })
 
 # Add reasonable timeout
@@ -44,20 +46,11 @@ NEWS_SITES = [
         'url': 'https://kathmandupost.com',
         'language': 'en',
         'name': 'The Kathmandu Post',
-        'limit': 500,
-        'article_selector': 'article.article-item, div.article-image, .article',
-        'title_selector': 'h3 a, .article-header a, h2 a',
-        'summary_selector': '.article-excerpt, p.text-gray-600, .description',
-        'image_selector': 'img.featured-image, .article-image img, meta[property="og:image"]',
-        'date_selector': 'time, .article-date, .published-date',
-        'categories': [
-            {'path': '', 'category': 'all'},
-            {'path': '/national', 'category': 'national'},
-            {'path': '/valley', 'category': 'valley'},
-            {'path': '/money', 'category': 'business'},
-            {'path': '/sports', 'category': 'sports'},
-            {'path': '/opinion', 'category': 'opinion'}
-        ]
+        'article_selector': '.article-item, article.normal, div.article',
+        'title_selector': 'h3 a, .article-header a, h2.article-header a',
+        'summary_selector': '.article-excerpt, .description p',
+        'image_selector': '.article-image img, .image-container img, meta[property="og:image"]',
+        'date_selector': 'time, .published-date',
     },
     {
         'url': 'https://thehimalayantimes.com',
@@ -193,118 +186,88 @@ def fetch_site_news(site):
     """Fetch news from a single site"""
     articles = []
     processed_urls = set()
-    retries = 3
 
-    for category in site['categories']:
-        page = 1
-        max_pages = 2
+    try:
+        url = site['url']
+        logger.info(f"Fetching news from {url}")
         
-        while len(articles) < site['limit'] and page <= max_pages:
+        # Add random delay to avoid rate limiting
+        sleep(uniform(1, 2))
+        
+        response = session.get(url, timeout=30, verify=True)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        logger.info(f"Successfully fetched HTML from {url}")
+        
+        # Find all articles
+        news_items = soup.select(site['article_selector'])
+        logger.info(f"Found {len(news_items)} articles on {url}")
+        
+        for item in news_items[:20]:
             try:
-                # Add delay between requests
-                sleep(uniform(1.0, 2.0))
+                # Extract title and URL
+                title_elem = item.select_one(site['title_selector'])
+                if not title_elem:
+                    logger.warning("No title element found")
+                    continue
                 
-                # Construct page URL
-                page_url = f"{site['url']}{category['path']}"
-                if page > 1 and 'kathmandupost.com' in site['url']:
-                    page_url += f"?page={page}"
-                elif page > 1:
-                    page_url += f"/page/{page}"
-
-                # Fetch page with retries
-                response = None
-                for attempt in range(retries):
-                    try:
-                        response = session.get(
-                            page_url, 
-                            timeout=15,
-                            headers={
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                                'Accept-Language': 'en-US,en;q=0.5',
-                                'Connection': 'keep-alive',
-                            }
-                        )
-                        response.raise_for_status()
-                        break
-                    except Exception as e:
-                        logger.warning(f"Attempt {attempt + 1} failed for {page_url}: {str(e)}")
-                        if attempt == retries - 1:
-                            raise
-                        sleep(uniform(2.0, 4.0))
-
-                if not response or response.status_code != 200:
-                    logger.warning(f"Failed to fetch {page_url}")
-                    break
-
-                # Parse page content
-                soup = BeautifulSoup(response.text, 'html.parser')
-                news_items = soup.select(site['article_selector'])
-
-                if not news_items:
-                    logger.warning(f"No news items found at {page_url} using selector: {site['article_selector']}")
-                    break
-
-                # Process each news item
-                for item in news_items[:10]:
-                    try:
-                        # Get title and URL
-                        title_elem = item.select_one(site['title_selector'])
-                        if not title_elem:
-                            continue
-                            
-                        title = title_elem.get_text(strip=True)
-                        article_url = title_elem.get('href', '')
-                        
-                        # Fix relative URLs
-                        if article_url.startswith('/'):
-                            article_url = site['url'] + article_url
-                        elif not article_url.startswith('http'):
-                            continue
-
-                        # Skip if already processed
-                        if article_url in processed_urls:
-                            continue
-                        processed_urls.add(article_url)
-
-                        # Get image
-                        image_url = None
-                        image_elem = item.select_one(site['image_selector'])
-                        if image_elem:
-                            image_url = image_elem.get('data-src') or image_elem.get('src', '')
-                            if image_url and not image_url.startswith('http'):
-                                image_url = site['url'] + image_url if image_url.startswith('/') else None
-
-                        # Get summary
-                        summary_elem = item.select_one(site['summary_selector'])
-                        summary = summary_elem.get_text(strip=True) if summary_elem else title
-                        summary = ' '.join(summary.split()[:60]) + '...'
-
-                        # Create article object
-                        articles.append({
-                            'title': title,
-                            'summary': summary,
-                            'url': article_url,
-                            'image_url': image_url or 'https://via.placeholder.com/400x300?text=News+Image',
-                            'published_at': timezone.now(),
-                            'category': category['category'],
-                            'source': site['name'],
-                            'language': site['language']
-                        })
-
-                    except Exception as e:
-                        logger.warning(f"Error processing article: {str(e)}")
-                        continue
-
-                page += 1
-
+                title = title_elem.get_text(strip=True)
+                article_url = title_elem.get('href', '')
+                
+                # Fix relative URLs
+                if article_url.startswith('/'):
+                    article_url = site['url'] + article_url
+                elif not article_url.startswith('http'):
+                    logger.warning(f"Invalid article URL: {article_url}")
+                    continue
+                
+                # Skip duplicates
+                if article_url in processed_urls:
+                    continue
+                processed_urls.add(article_url)
+                
+                # Extract image
+                image_url = None
+                image_elem = item.select_one(site['image_selector'])
+                if image_elem:
+                    # Try different attributes for image URL
+                    image_url = (image_elem.get('data-src') or 
+                               image_elem.get('src') or 
+                               image_elem.get('content'))
+                    
+                    if image_url and not image_url.startswith('http'):
+                        image_url = site['url'] + image_url if image_url.startswith('/') else None
+                
+                # Extract summary
+                summary_elem = item.select_one(site['summary_selector'])
+                summary = summary_elem.get_text(strip=True) if summary_elem else title
+                summary = ' '.join(summary.split()[:60]) + '...'
+                
+                logger.info(f"Processing article: {title}")
+                
+                article = {
+                    'title': title,
+                    'summary': summary,
+                    'url': article_url,
+                    'image_url': image_url or 'https://via.placeholder.com/400x300?text=News+Image',
+                    'published_at': timezone.now(),
+                    'category': 'all',
+                    'source': site['name'],
+                    'language': site['language']
+                }
+                
+                articles.append(article)
+                logger.info(f"Added article: {title}")
+                
             except Exception as e:
-                logger.error(f"Error on page {page} for {site['url']}: {str(e)}")
-                break
-
-    if not articles:
-        logger.warning(f"No articles could be fetched from {site['name']}")
+                logger.error(f"Error processing article: {str(e)}")
+                continue
+                
+    except Exception as e:
+        logger.error(f"Error fetching from {site['name']}: {str(e)}")
     
+    logger.info(f"Total articles fetched from {site['name']}: {len(articles)}")
     return articles
 
 def parse_date(date_str):
@@ -367,47 +330,20 @@ def fetch_and_summarize_news(page=1, per_page=20):
         
         if cached_news:
             return cached_news
-
-        # Use all configured news sites
-        active_sites = NEWS_SITES
-        articles_per_site = 20  # Fetch 20 articles from each site
-        
+            
         all_articles = []
-        errors = []
         
-        # Use ThreadPoolExecutor to fetch from multiple sites concurrently
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_site = {
-                executor.submit(
-                    fetch_site_news, 
-                    {**site, 'limit': articles_per_site}
-                ): site for site in active_sites
-            }
-            
-            # Add timeout to the futures
-            done, not_done = concurrent.futures.wait(
-                future_to_site,
-                timeout=30,  # 30 second timeout
-                return_when=concurrent.futures.ALL_COMPLETED
-            )
-
-            # Cancel any pending futures
-            for future in not_done:
-                future.cancel()
-            
-            # Process completed futures
-            for future in done:
-                try:
-                    articles = future.result(timeout=10)
-                    if articles:
-                        all_articles.extend(articles)
-                except Exception as e:
-                    logger.warning(f"Error fetching from site: {str(e)}")
-                    continue
-
-        # If we have articles, process them
+        # Fetch from each site sequentially for now
+        for site in NEWS_SITES:
+            try:
+                site_articles = fetch_site_news(site)
+                all_articles.extend(site_articles)
+            except Exception as e:
+                logger.error(f"Error fetching from {site['name']}: {str(e)}")
+                continue
+        
         if all_articles:
-            # Remove duplicates based on URL
+            # Remove duplicates and sort
             seen_urls = set()
             unique_articles = []
             for article in all_articles:
@@ -415,10 +351,10 @@ def fetch_and_summarize_news(page=1, per_page=20):
                     seen_urls.add(article['url'])
                     unique_articles.append(article)
             
-            # Sort by published date (newest first)
+            # Sort by date
             unique_articles.sort(key=lambda x: x['published_at'], reverse=True)
             
-            # Paginate results
+            # Paginate
             total_articles = len(unique_articles)
             start_idx = (page - 1) * per_page
             end_idx = min(start_idx + per_page, total_articles)
@@ -436,20 +372,19 @@ def fetch_and_summarize_news(page=1, per_page=20):
             cache.set(cache_key, result, 300)
             
             return result
-        
-        # Return empty result if no articles
-        return {
-            'articles': [],
-            'total': 0,
-            'page': page,
-            'per_page': per_page,
-            'total_pages': 0,
-            'has_next': False
-        }
-
+            
     except Exception as e:
         logger.error(f"Error in fetch_and_summarize_news: {str(e)}")
-        raise
+        
+    # Return empty result on any error
+    return {
+        'articles': [],
+        'total': 0,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': 0,
+        'has_next': False
+    }
 
 def validate_site_config(site):
     """Validate and test site configuration"""
