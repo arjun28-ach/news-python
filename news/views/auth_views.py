@@ -4,6 +4,9 @@ from django.contrib.auth.forms import UserCreationForm
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.middleware.csrf import get_token
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 @ensure_csrf_cookie
 def get_csrf_token(request):
@@ -15,29 +18,70 @@ def signup(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
-            form = UserCreationForm({
-                'username': data.get('username'),
-                'password1': data.get('password'),
-                'password2': data.get('password')
-            })
-            if form.is_valid():
-                user = form.save()
-                login(request, user)
+            username = data.get('username')
+            password = data.get('password')
+            
+            # Validate input
+            if not username or not password:
                 return JsonResponse({
-                    'status': 'success',
-                    'user': {
-                        'username': user.username
-                    }
-                })
-            return JsonResponse({
-                'status': 'error',
-                'errors': form.errors
-            }, status=400)
+                    'status': 'error',
+                    'message': 'Username and password are required'
+                }, status=400)
+            
+            # Check if username exists
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            if User.objects.filter(username=username).exists():
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Username already exists'
+                }, status=400)
+            
+            # Create user with proper password confirmation
+            form = UserCreationForm({
+                'username': username,
+                'password1': password,
+                'password2': password  # Password confirmation
+            })
+            
+            if form.is_valid():
+                try:
+                    user = form.save()
+                    login(request, user)
+                    return JsonResponse({
+                        'status': 'success',
+                        'user': {
+                            'username': user.username
+                        }
+                    })
+                except Exception as e:
+                    logger.error(f"Error saving user: {str(e)}")
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': 'Error creating user account'
+                    }, status=500)
+            else:
+                # Return specific form errors
+                errors = {}
+                for field, error_list in form.errors.items():
+                    errors[field] = [str(error) for error in error_list]
+                return JsonResponse({
+                    'status': 'error',
+                    'errors': errors
+                }, status=400)
+                
         except json.JSONDecodeError:
             return JsonResponse({
                 'status': 'error',
-                'message': 'Invalid JSON'
+                'message': 'Invalid JSON data'
             }, status=400)
+        except Exception as e:
+            logger.error(f"Unexpected error in signup: {str(e)}")
+            return JsonResponse({
+                'status': 'error',
+                'message': 'An unexpected error occurred'
+            }, status=500)
+            
     return JsonResponse({
         'status': 'error',
         'message': 'Method not allowed'
@@ -50,6 +94,14 @@ def login_view(request):
             data = json.loads(request.body)
             username = data.get('username')
             password = data.get('password')
+            
+            # Validate input
+            if not username or not password:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Username and password are required'
+                }, status=400)
+            
             user = authenticate(request, username=username, password=password)
             if user is not None:
                 login(request, user)
@@ -66,8 +118,15 @@ def login_view(request):
         except json.JSONDecodeError:
             return JsonResponse({
                 'status': 'error',
-                'message': 'Invalid JSON'
+                'message': 'Invalid JSON data'
             }, status=400)
+        except Exception as e:
+            logger.error(f"Unexpected error in login: {str(e)}")
+            return JsonResponse({
+                'status': 'error',
+                'message': 'An unexpected error occurred'
+            }, status=500)
+            
     return JsonResponse({
         'status': 'error',
         'message': 'Method not allowed'

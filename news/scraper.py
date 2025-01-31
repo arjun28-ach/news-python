@@ -42,17 +42,15 @@ NEWS_SITES = [
         'article_selector': 'article.article-item, .article-image',
         'title_selector': 'h3 a, .article-header a',
         'summary_selector': '.article-excerpt, p.text-gray-600',
-        'image_selector': '.article-image img, meta[property="og:image"], .image img, img.featured-image',
+        'image_selector': '.article-image img, meta[property="og:image"], .image img',
         'date_selector': 'time, .article-date',
         'categories': [
             {'path': '', 'category': 'all'},
             {'path': '/national', 'category': 'national'},
-            {'path': '/politics', 'category': 'politics'},
             {'path': '/valley', 'category': 'valley'},
-            {'path': '/opinion', 'category': 'opinion'},
-            {'path': '/money', 'category': 'money'},
+            {'path': '/money', 'category': 'business'},
             {'path': '/sports', 'category': 'sports'},
-            {'path': '/art-culture', 'category': 'art-culture'}
+            {'path': '/opinion', 'category': 'opinion'}
         ]
     },
     {
@@ -94,7 +92,10 @@ NEWS_SITES = [
         'image_selector': '.featured-image img, .article-image img',
         'date_selector': '.date, .published-date',
         'categories': [
-            {'path': '', 'category': 'all'}  # Main page
+            {'path': '', 'category': 'all'},
+            {'path': '/category/politics', 'category': 'politics'},
+            {'path': '/category/economy', 'category': 'business'},
+            {'path': '/category/society', 'category': 'society'}
         ]
     },
     {
@@ -108,7 +109,10 @@ NEWS_SITES = [
         'image_selector': '.card-img-top, .featured-image img',
         'date_selector': '.date, time',
         'categories': [
-            {'path': '', 'category': 'all'}  # Main page
+            {'path': '', 'category': 'all'},
+            {'path': '/category/politics', 'category': 'politics'},
+            {'path': '/category/business', 'category': 'business'},
+            {'path': '/category/society', 'category': 'society'}
         ]
     },
     {
@@ -366,7 +370,7 @@ def get_matching_category(target_category, available_categories):
             return category
     return None
 
-def fetch_and_summarize_news(page=1, per_page=30):
+def fetch_and_summarize_news(page=1, per_page=20):
     """Fetch and summarize news with pagination"""
     try:
         cache_key = f'news_cache_{page}'
@@ -375,23 +379,15 @@ def fetch_and_summarize_news(page=1, per_page=30):
         if cached_news:
             return cached_news
 
+        # Use all configured news sites
+        active_sites = NEWS_SITES
+        articles_per_site = 20  # Fetch 20 articles from each site
+        
         all_articles = []
         errors = []
         
-        # Load more sites as we go deeper in pages
-        if page <= 2:
-            active_sites = NEWS_SITES[:3]  # First 3 sites for first 2 pages
-            articles_per_site = 30  # 30 articles each
-        elif page <= 4:
-            active_sites = NEWS_SITES[:4]  # 4 sites for pages 3-4
-            articles_per_site = 40  # 40 articles each
-        else:
-            active_sites = NEWS_SITES  # All sites for later pages
-            articles_per_site = 50  # 50 articles each
-        
-        category_mapping = {}  # Cache for category mappings
-        
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        # Use ThreadPoolExecutor to fetch from multiple sites concurrently
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_site = {
                 executor.submit(
                     fetch_site_news, 
@@ -399,64 +395,72 @@ def fetch_and_summarize_news(page=1, per_page=30):
                 ): site for site in active_sites
             }
             
-            for future in concurrent.futures.as_completed(future_to_site):
-                site = future_to_site[future]
+            # Add timeout to the futures
+            done, not_done = concurrent.futures.wait(
+                future_to_site,
+                timeout=30,  # 30 second timeout
+                return_when=concurrent.futures.ALL_COMPLETED
+            )
+
+            # Cancel any pending futures
+            for future in not_done:
+                future.cancel()
+            
+            # Process completed futures
+            for future in done:
                 try:
-                    articles = future.result()
+                    articles = future.result(timeout=10)
                     if articles:
-                        # Normalize categories before adding to all_articles
-                        for article in articles:
-                            orig_category = article['category']
-                            # Cache the mapping to avoid recalculating
-                            if orig_category not in category_mapping:
-                                category_mapping[orig_category] = normalize_category(orig_category)
-                            article['category'] = category_mapping[orig_category]
                         all_articles.extend(articles)
-                    else:
-                        errors.append(f"No articles fetched from {site['name']}")
                 except Exception as e:
-                    errors.append(f"Error processing site {site['url']}: {str(e)}")
-                    logger.error(f"Error processing site {site['url']}: {str(e)}")
+                    logger.warning(f"Error fetching from site: {str(e)}")
                     continue
-        
-        if not all_articles:
-            error_msg = "Failed to fetch news. " + " ".join(errors)
-            logger.error(error_msg)
-            raise Exception(error_msg)
 
-        # Group articles by normalized category
-        categorized_articles = {}
-        for article in all_articles:
-            norm_category = article['category']
-            if norm_category not in categorized_articles:
-                categorized_articles[norm_category] = []
-            categorized_articles[norm_category].append(article)
-
-        # Shuffle articles for random display
-        random.shuffle(all_articles)
+        # If we have articles, process them
+        if all_articles:
+            # Remove duplicates based on URL
+            seen_urls = set()
+            unique_articles = []
+            for article in all_articles:
+                if article['url'] not in seen_urls:
+                    seen_urls.add(article['url'])
+                    unique_articles.append(article)
+            
+            # Sort by published date (newest first)
+            unique_articles.sort(key=lambda x: x['published_at'], reverse=True)
+            
+            # Paginate results
+            total_articles = len(unique_articles)
+            start_idx = (page - 1) * per_page
+            end_idx = min(start_idx + per_page, total_articles)
+            
+            result = {
+                'articles': unique_articles[start_idx:end_idx],
+                'total': total_articles,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': math.ceil(total_articles / per_page),
+                'has_next': end_idx < total_articles
+            }
+            
+            # Cache for 5 minutes
+            cache.set(cache_key, result, 300)
+            
+            return result
         
-        # Calculate pagination
-        total_articles = len(all_articles)
-        start_idx = (page - 1) * per_page
-        end_idx = min(start_idx + per_page, total_articles)
-        
-        result = {
-            'articles': all_articles[start_idx:end_idx],
-            'total': total_articles,
+        # Return empty result if no articles
+        return {
+            'articles': [],
+            'total': 0,
             'page': page,
             'per_page': per_page,
-            'total_pages': math.ceil(total_articles / per_page),
-            'has_next': end_idx < total_articles
+            'total_pages': 0,
+            'has_next': False
         }
-        
-        # Cache for 5 minutes
-        cache.set(cache_key, result, 300)
-        
-        return result
-        
+
     except Exception as e:
         logger.error(f"Error in fetch_and_summarize_news: {str(e)}")
-        raise Exception(f"Failed to fetch news: {str(e)}")
+        raise
 
 def validate_site_config(site):
     """Validate and test site configuration"""
